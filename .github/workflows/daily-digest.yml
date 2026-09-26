@@ -1,0 +1,160 @@
+name: Daily Digest Generation
+
+on:
+  schedule:
+    # Run daily at 8 AM UTC (13:30 IST)
+    - cron: '0 8 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  generate-digest:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Create output directory
+      run: mkdir -p output data/raw data/processed
+
+    - name: Generate daily digest
+      run: |
+        python -c "
+import logging
+from datetime import datetime, timezone
+from app.collectors import RSSCollector, GitHubCollector, HackerNewsCollector, ArxivCollector, HuggingFaceCollector
+from app.processors import UnifiedDataLayer, DeduplicationEngine, VerificationEngine, ImportanceRankingEngine, PersonalizationEngine
+from app.analyzers import DecisionEngine
+from app.generators import DigestGenerator, DigestFormat
+from app.platforms import XContentGenerator
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+try:
+    logger.info('Starting daily digest generation...')
+    
+    # Run collectors
+    logger.info('Collecting articles...')
+    rss = RSSCollector()
+    gh = GitHubCollector()
+    hn = HackerNewsCollector()
+    arxiv = ArxivCollector()
+    hf = HuggingFaceCollector()
+    
+    articles = []
+    articles.extend(rss.collect())
+    articles.extend(gh.collect())
+    articles.extend(hn.collect())
+    articles.extend(arxiv.collect())
+    articles.extend(hf.collect())
+    
+    logger.info(f'Collected {len(articles)} articles')
+    
+    # Unify and process
+    logger.info('Processing articles...')
+    data_layer = UnifiedDataLayer()
+    unified = data_layer.merge_articles(articles)
+    logger.info(f'Unified to {len(unified.articles)} articles')
+    
+    # Deduplicate
+    dedup = DeduplicationEngine()
+    deduplicated = dedup.deduplicate(unified.articles)
+    logger.info(f'Deduplicated to {len(deduplicated)} articles')
+    
+    # Verify
+    verifier = VerificationEngine()
+    verified = [verifier.verify_article(a) for a in deduplicated]
+    good_quality = [v for v in verified if v.quality_level.value in ['EXCELLENT', 'GOOD', 'ACCEPTABLE']]
+    logger.info(f'Quality filtered to {len(good_quality)} articles')
+    
+    # Rank
+    ranker = ImportanceRankingEngine()
+    ranked = [ranker.rank_article(v.article) for v in good_quality]
+    ranked.sort(key=lambda x: x.overall_score, reverse=True)
+    logger.info(f'Ranked {len(ranked)} articles')
+    
+    # Generate digest
+    logger.info('Generating digest...')
+    gen = DigestGenerator(user_id='daily_digest', base_url='https://ai-radar.local')
+    digest = gen.generate_digest(ranked[:50])
+    
+    # Save formats
+    timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+    
+    # Email HTML
+    email_html = gen.generate_email_html(digest)
+    with open(f'output/digest_email_{timestamp}.html', 'w') as f:
+        f.write(email_html)
+    logger.info(f'Saved email HTML digest')
+    
+    # Markdown
+    markdown = gen.generate_markdown(digest)
+    with open(f'output/digest_{timestamp}.md', 'w') as f:
+        f.write(markdown)
+    logger.info(f'Saved markdown digest')
+    
+    # JSON
+    json_content = gen.generate_json(digest)
+    import json
+    with open(f'output/digest_{timestamp}.json', 'w') as f:
+        json.dump(json_content, f, indent=2, default=str)
+    logger.info(f'Saved JSON digest')
+    
+    logger.info('✓ Daily digest generation complete')
+    
+except Exception as e:
+    logger.error(f'Error generating digest: {e}', exc_info=True)
+    exit(1)
+"
+      env:
+        PYTHONUNBUFFERED: 1
+
+    - name: Archive digest artifacts
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: daily-digests
+        path: output/digest_*.{html,md,json}
+        retention-days: 30
+
+    - name: Commit and push digest
+      if: success()
+      run: |
+        git config --local user.email "radar@local"
+        git config --local user.name "AI-RADAR"
+        
+        timestamp=$(date -u +%Y%m%d)
+        if [ -f "output/digest_*.md" ]; then
+          git add output/digest_*.{html,md,json} 2>/dev/null || true
+          git commit -m "Daily digest: $timestamp" || true
+          git push || echo "No changes to push"
+        fi
+
+    - name: Upload to storage (optional)
+      if: success()
+      run: |
+        echo "Digest generation complete. Ready for email delivery."
+        # Add your cloud storage upload here (S3, GCS, etc)
+
+    - name: Notify on failure
+      if: failure()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '❌ Daily digest generation failed. Check workflow logs.'
+          })

@@ -1,0 +1,144 @@
+name: Scheduled Collection
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  collect-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Create data directories
+      run: mkdir -p data/raw data/processed
+
+    - name: Run collectors
+      run: |
+        python -c "
+import logging
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from app.collectors import (
+    RSSCollector,
+    GitHubCollector,
+    HackerNewsCollector,
+    ArxivCollector,
+    HuggingFaceCollector,
+)
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+collectors = [
+    ('RSS', RSSCollector()),
+    ('GitHub', GitHubCollector()),
+    ('HackerNews', HackerNewsCollector()),
+    ('arXiv', ArxivCollector()),
+    ('HuggingFace', HuggingFaceCollector()),
+]
+
+timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+results = {'timestamp': timestamp, 'collections': {}}
+
+Path('data/raw').mkdir(parents=True, exist_ok=True)
+
+for name, collector in collectors:
+    try:
+        logger.info(f'Running {name} collector...')
+        articles = collector.collect()
+        logger.info(f'{name}: collected {len(articles)} articles')
+        
+        # Save as JSON
+        articles_json = [
+            {
+                'source': a.source,
+                'id': a.id,
+                'title': a.title,
+                'url': a.url,
+                'summary': a.summary,
+                'published_at': a.published_at.isoformat() if a.published_at else None,
+                'author': a.author,
+                'category': a.category,
+                'tags': a.tags,
+                'metadata': a.metadata,
+            }
+            for a in articles
+        ]
+        
+        filename = f'data/raw/{name.lower()}_{timestamp}.json'
+        with open(filename, 'w') as f:
+            json.dump(articles_json, f, indent=2, default=str)
+        
+        results['collections'][name] = {
+            'status': 'success',
+            'count': len(articles),
+            'file': filename,
+        }
+        
+    except Exception as e:
+        logger.error(f'{name} collector failed: {e}', exc_info=True)
+        results['collections'][name] = {
+            'status': 'error',
+            'error': str(e),
+        }
+
+# Save collection report
+report_file = f'data/collection_report_{timestamp}.json'
+with open(report_file, 'w') as f:
+    json.dump(results, f, indent=2, default=str)
+
+logger.info(f'Collection report saved to {report_file}')
+
+# Print summary
+total = sum(1 for c in results['collections'].values() if c['status'] == 'success')
+logger.info(f'✓ Collection complete: {total}/{len(collectors)} collectors succeeded')
+"
+      env:
+        PYTHONUNBUFFERED: 1
+
+    - name: Archive collection data
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: collected-data
+        path: data/
+        retention-days: 30
+
+    - name: Commit collected data
+      if: success()
+      run: |
+        git config --local user.email "radar@local"
+        git config --local user.name "AI-RADAR"
+        
+        git add data/raw/*.json data/collection_report_*.json 2>/dev/null || true
+        git commit -m "Scheduled collection: $(date -u +%Y-%m-%d_%H:%M:%S_UTC)" || true
+        git push || echo "No changes to push"
+
+    - name: Cleanup old data (optional)
+      run: |
+        # Keep only last 7 days of raw data
+        find data/raw -name "*.json" -mtime +7 -delete || true
+        logger.info "Cleaned up data older than 7 days"
+
+    - name: Notify on error
+      if: failure()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          console.log('Collection workflow failed');
