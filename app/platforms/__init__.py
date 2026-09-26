@@ -1,13 +1,9 @@
 """
-Generators module — Output generation and formatting.
-"""
+Platforms module — Platform-specific integrations (Twitter/X, etc).
 
-from app.generators.digest_generator import (
-    DigestGenerator,
-    DigestFormat,
-    DigestMetadata,
-    DigestSection,
-)
+Exports:
+- X/Twitter: Tweet generation, threading, scheduling
+"""
 
 from app.platforms.x_config import (
     XContentGenerator,
@@ -20,10 +16,6 @@ from app.platforms.x_config import (
 )
 
 __all__ = [
-    "DigestGenerator",
-    "DigestFormat",
-    "DigestMetadata",
-    "DigestSection",
     "XContentGenerator",
     "XConfigurationManager",
     "XAPIConfig",
