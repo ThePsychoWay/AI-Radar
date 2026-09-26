@@ -14,9 +14,20 @@ numpy==1.26.3
 
 # Database
 sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+alembic==1.13.1
 
 # AI/ML
 anthropic==0.7.1
+
+# Web Framework & ASGI
+fastapi==0.109.0
+uvicorn==0.27.0
+gunicorn==21.2.0
+
+# Task Queue
+celery==5.3.4
+redis==5.0.1
 
 # CLI & Utils
 click==8.1.7
@@ -26,11 +37,13 @@ pyyaml==6.0.1
 # Testing
 pytest==7.4.3
 pytest-cov==4.1.0
+pytest-asyncio==0.23.2
 
 # Code Quality
 black==23.12.1
 flake8==6.1.0
 isort==5.13.2
+pylint==3.0.3
 
 # Scheduling (for local testing; GitHub Actions will be used for production)
 schedule==1.2.0
@@ -41,6 +54,9 @@ markdown==3.5.2
 # Email
 secure-smtplib==0.1.1
 
+# Monitoring & Logging
+sentry-sdk==1.39.2
+
 # Google Drive (optional for Phase 15)
 google-auth-oauthlib==1.2.0
 google-auth-httplib2==0.2.0
@@ -48,3 +64,7 @@ google-api-python-client==2.107.0
 
 # Telegram (optional for Phase 15)
 python-telegram-bot==20.5
+
+# Production utilities
+python-multipart==0.0.6
+pydantic==2.5.0
