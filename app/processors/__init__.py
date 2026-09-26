@@ -6,6 +6,13 @@ from app.processors.data_layer import UnifiedDataLayer, UnifiedArticle, Deduplic
 from app.processors.deduplication import DeduplicationEngine, DuplicateCandidate, SimilarityMetric
 from app.processors.verification import VerificationEngine, VerificationScore, QualityLevel, SourceReliability
 from app.processors.importance import ImportanceRankingEngine, ImportanceScore, ImportanceLevel
+from app.processors.personalization import (
+    PersonalizationEngine,
+    UserProfile,
+    InterestProfile,
+    PreferenceLevel,
+    InteractionType,
+)
 
 __all__ = [
     "UnifiedDataLayer",
@@ -21,4 +28,9 @@ __all__ = [
     "ImportanceRankingEngine",
     "ImportanceScore",
     "ImportanceLevel",
+    "PersonalizationEngine",
+    "UserProfile",
+    "InterestProfile",
+    "PreferenceLevel",
+    "InteractionType",
 ]
