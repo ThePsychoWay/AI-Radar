@@ -5,6 +5,7 @@ Processors module — Data processing and aggregation.
 from app.processors.data_layer import UnifiedDataLayer, UnifiedArticle, DeduplicationStrategy
 from app.processors.deduplication import DeduplicationEngine, DuplicateCandidate, SimilarityMetric
 from app.processors.verification import VerificationEngine, VerificationScore, QualityLevel, SourceReliability
+from app.processors.importance import ImportanceRankingEngine, ImportanceScore, ImportanceLevel
 
 __all__ = [
     "UnifiedDataLayer",
@@ -17,4 +18,7 @@ __all__ = [
     "VerificationScore",
     "QualityLevel",
     "SourceReliability",
+    "ImportanceRankingEngine",
+    "ImportanceScore",
+    "ImportanceLevel",
 ]
